@@ -1,0 +1,448 @@
+@page "/generator"
+@inject MermaidParser Parser
+@inject CSharpGenerator CSharpGen
+@inject IJSRuntime JS
+
+@rendermode InteractiveServer
+<PageTitle>Mermaid to EF Core Generator</PageTitle>
+
+<div class="generator-container">
+    <div class="header-section">
+        <h1><i class="bi bi-diagram-3"></i> Mermaid ER → EF Core Schema</h1>
+        <p class="subtitle">Transform your database diagrams into enterprise-ready Entity Framework Core models</p>
+    </div>
+
+    <div class="content-section">
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card input-card h-100 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-file-earmark-code"></i> Mermaid ER Diagram</h5>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <textarea class="form-control font-monospace flex-grow-1 mb-3" 
+                                  rows="30" 
+                                  @bind="mermaidInput"
+                                  placeholder="Paste your Mermaid ER diagram here..."
+                                  style="font-size: 0.875rem; resize: none;"></textarea>
+                        
+                        <div class="button-group d-flex gap-2">
+                            <button class="btn btn-primary flex-grow-1" @onclick="Generate" disabled="@isGenerating">
+                                @if (isGenerating)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span>Generating...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-lightning-charge-fill"></i> <span>Generate</span>
+                                }
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="LoadSample" title="Load sample diagram">
+                                <i class="bi bi-file-earmark-text"></i> Sample
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-6">
+                <div class="card output-card h-100 shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="bi bi-code-square"></i> Generated C# Code</h5>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        @if (string.IsNullOrEmpty(generatedCode))
+                        {
+                            <div class="alert alert-info flex-grow-1 d-flex align-items-center">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Paste a Mermaid ER diagram and click Generate to see C# code
+                            </div>
+                        }
+                        else
+                        {
+                            <ul class="nav nav-tabs mb-3" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link @(activeTab == "entities" ? "active" : "")" 
+                                            @onclick="SelectEntitiesTab"
+                                            type="button" role="tab">
+                                        <i class="bi bi-boxes"></i> Entities
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link @(activeTab == "dbcontext" ? "active" : "")" 
+                                            @onclick="SelectDbContextTab"
+                                            type="button" role="tab">
+                                        <i class="bi bi-database"></i> DbContext
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <div class="tab-content flex-grow-1">
+                                @if (activeTab == "entities")
+                                {
+                                    <pre><code class="language-csharp">@generatedEntities</code></pre>
+                                }
+                                else
+                                {
+                                    <pre><code class="language-csharp">@generatedDbContext</code></pre>
+                                }
+                            </div>
+
+                            <div class="button-group d-flex gap-2 mt-3">
+                                <button class="btn btn-outline-primary btn-sm flex-grow-1" 
+                                        @onclick="CopyCurrentTab">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                                <button class="btn btn-outline-success btn-sm flex-grow-1" 
+                                        @onclick="HighlightCode">
+                                    <i class="bi bi-brush"></i> Highlight
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .generator-container {
+        padding: 2rem 1rem;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .header-section {
+        text-align: center;
+        color: white;
+        margin-bottom: 2rem;
+    }
+
+    .header-section h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .header-section .subtitle {
+        font-size: 1.1rem;
+        opacity: 0.95;
+        margin: 0;
+    }
+
+    .content-section {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .card {
+        border: none;
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+
+    .input-card, .output-card {
+        background: white;
+    }
+
+    .card-header {
+        padding: 1rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .card-header h5 {
+        font-weight: 600;
+    }
+
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    textarea {
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        font-family: 'Courier New', monospace;
+    }
+
+    textarea:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    pre {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        overflow-x: auto;
+        margin: 0;
+        flex-grow: 1;
+    }
+
+    code {
+        font-size: 0.875rem;
+        font-family: 'Courier New', monospace;
+    }
+
+    .button-group {
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        font-weight: 500;
+        border-radius: 0.375rem;
+        transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+        background: #667eea;
+        border-color: #667eea;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #5568d3;
+        border-color: #5568d3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-outline-secondary:hover {
+        border-color: #6c757d;
+        color: #6c757d;
+    }
+
+    .btn-outline-primary:hover {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+
+    .btn-outline-success:hover {
+        background: #28a745;
+        border-color: #28a745;
+        color: white;
+    }
+
+    .nav-tabs .nav-link {
+        color: #6c757d;
+        border: none;
+        border-bottom: 2px solid transparent;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .nav-tabs .nav-link:hover {
+        color: #667eea;
+        border-bottom-color: #667eea;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #667eea;
+        border-bottom-color: #667eea;
+        background: transparent;
+    }
+
+    .alert {
+        border-radius: 0.375rem;
+        border: none;
+        background: #e7f3ff;
+        color: #004085;
+    }
+
+    .spinner-border {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    @@media (max-width: 991.98px) {
+        .header-section h1 {
+            font-size: 1.75rem;
+        }
+
+        .header-section .subtitle {
+            font-size: 1rem;
+        }
+
+        textarea {
+            font-size: 0.75rem !important;
+        }
+
+        code {
+            font-size: 0.75rem;
+        }
+    }
+</style>
+
+@code {
+    private string mermaidInput = "";
+    private string generatedEntities = "";
+    private string generatedDbContext = "";
+    private string generatedCode = "";
+    private string activeTab = "entities";
+    private bool isGenerating = false;
+
+    private async Task Generate()
+    {
+        await JS.InvokeVoidAsync("console.log", "Generate called, input length: " + (mermaidInput?.Length ?? 0));
+        
+        if (string.IsNullOrWhiteSpace(mermaidInput))
+        {
+            generatedCode = "";
+            generatedEntities = "";
+            generatedDbContext = "";
+            await JS.InvokeVoidAsync("console.log", "Input was empty");
+            return;
+        }
+
+        isGenerating = true;
+        StateHasChanged();
+        await JS.InvokeVoidAsync("console.log", "Starting generation...");
+
+        try
+        {
+            var schema = await Parser.ParseAsync(mermaidInput);
+            await JS.InvokeVoidAsync("console.log", "Parsed schema");
+            generatedEntities = await CSharpGen.GenerateEntitiesAsync(schema);
+            await JS.InvokeVoidAsync("console.log", "Generated entities");
+            generatedDbContext = await CSharpGen.GenerateDbContextAsync(schema);
+            await JS.InvokeVoidAsync("console.log", "Generated DbContext");
+            generatedCode = generatedEntities + "\n\n" + generatedDbContext;
+            activeTab = "entities";
+            StateHasChanged();
+            
+            // Highlight after DOM update
+            await JS.InvokeVoidAsync("eval", "setTimeout(() => Prism.highlightAll(), 200)");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("console.log", "Error: " + ex.Message);
+            generatedCode = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isGenerating = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadSample()
+    {
+        mermaidInput = @"erDiagram
+    USER {
+        int user_id PK
+        string username UK
+        string email UK
+        datetime created_at
+        datetime updated_at
+    }
+
+    USER_PROFILE {
+        int user_id PK, FK
+        string first_name
+        string last_name
+        text bio
+    }
+
+    POST {
+        int post_id PK
+        int user_id FK
+        string title
+        text content
+        datetime created_at
+        datetime updated_at
+    }
+
+    COMMENT {
+        int comment_id PK
+        int post_id FK
+        int user_id FK
+        int parent_comment_id FK
+        text content
+        datetime created_at
+    }
+
+    TAG {
+        int tag_id PK
+        string name UK
+        datetime created_at
+    }
+
+    POST_TAG {
+        int post_id PK, FK
+        int tag_id PK, FK
+    }
+
+    VIDEO {
+        int video_id PK
+        int user_id FK
+        string title
+        text description
+        string url
+        int duration_seconds
+        datetime created_at
+    }
+
+    AUDIT_LOG {
+        int audit_id PK
+        string table_name PK
+        int record_id PK
+        string action
+        text changes
+        datetime created_at
+    }
+
+    USER ||--o{ POST : creates
+    USER ||--o{ COMMENT : writes
+    USER ||--o{ VIDEO : uploads
+    POST ||--o{ COMMENT : has
+    COMMENT }o--|| COMMENT : replies_to
+    TAG o{--}o POST : tagged_in
+    POST_TAG }o--|| TAG : contains
+    POST_TAG }o--|| POST : includes
+    USER ||--|| USER_PROFILE : has_profile";
+
+        await Generate();
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        try
+        {
+            await JS!.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        }
+        catch { }
+    }
+
+    private async Task HighlightCode()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("Prism.highlightAll");
+        }
+        catch { }
+    }
+
+    private async Task SelectEntitiesTab()
+    {
+        activeTab = "entities";
+        StateHasChanged();
+        await JS.InvokeVoidAsync("eval", "setTimeout(() => Prism.highlightAll(), 100)");
+    }
+
+    private async Task SelectDbContextTab()
+    {
+        activeTab = "dbcontext";
+        StateHasChanged();
+        await JS.InvokeVoidAsync("eval", "setTimeout(() => Prism.highlightAll(), 100)");
+    }
+
+    private async Task CopyCurrentTab()
+    {
+        var textToCopy = activeTab == "entities" ? generatedEntities : generatedDbContext;
+        await CopyToClipboard(textToCopy);
+    }
+}

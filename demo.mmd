@@ -1,0 +1,162 @@
+erDiagram
+    USER {
+        int user_id PK
+        string name
+        string email
+    }
+    
+    USER_PROFILE {
+        int user_id PK,FK
+        date_of_birth datetime
+        bio string
+    }
+    
+    POST {
+        int post_id PK
+        int user_id FK
+        string title
+        int view_count
+        created_at datetime
+    }
+    
+    VIDEO {
+        int video_id PK
+        int post_id FK
+        string url
+        duration int
+    }
+    
+    COMMENT {
+        int comment_id PK
+        int post_id FK
+        int author_id FK
+        int parent_comment_id FK
+    }
+    
+    TAG {
+        int tag_id PK
+        string name
+    }
+    
+    POST_TAG {
+        int post_id PK,FK
+        int tag_id PK,FK
+        tagged_at datetime
+    }
+    
+    AUDIT_LOG {
+        int entity_id PK
+        string entity_type PK
+        datetime timestamp PK
+        int user_id FK
+    }
+    
+    %% Relationships
+    USER ||--o{ POST : "writes"
+    USER ||--o{ COMMENT : "authors"
+    USER ||--|| USER_PROFILE : "has"
+    POST ||--o{ COMMENT : "has_comments"
+    COMMENT ||--o| COMMENT : "replies_to"
+    POST ||--o{ POST_TAG : "tagged"
+    TAG ||--o{ POST_TAG : "used_in"
+    POST ||--|| VIDEO : "may_have"
+    USER ||--o{ AUDIT_LOG : "performed"
+
+    %% Edge cases
+    SETTINGS {
+        uuid settings_id PK
+        bool is_active
+        decimal balance
+        float rating
+        json preferences
+    }
+
+    ACCOUNT {
+        int account_id PK
+        int settings_id FK
+        string display_name
+    }
+
+    ACCOUNT_SETTINGS {
+        int account_settings_id PK
+        string theme
+    }
+
+    ROLE {
+        int role_id PK
+        string name
+    }
+
+    USER_ROLE {
+        int user_id PK,FK
+        int role_id PK,FK
+        datetime granted_at
+    }
+
+    AUDIT_DETAIL {
+        int audit_id PK,FK
+        int sequence PK
+        string change_json
+    }
+
+    ALPHA {
+        int alpha_id PK
+    }
+
+    BETA {
+        int beta_id PK
+    }
+
+    GAMMA {
+        int gamma_id PK
+    }
+
+    %% Names with spaces/hyphens (intentional edge cases)
+    ORDER-LINE {
+        int order_id PK
+        int line_id PK
+    }
+
+    ORDER LINE {
+        int order_id PK
+        int line_id PK
+    }
+
+    %% Additional relationships
+    USER ||--o{ POST : "edits"
+    USER ||--o{ USER_ROLE : "assigned"
+    ROLE ||--o{ USER_ROLE : "includes"
+    ACCOUNT ||--|| ACCOUNT_SETTINGS : "uses"
+    ACCOUNT ||--|| SETTINGS : "configures"
+    AUDIT_LOG ||--o{ AUDIT_DETAIL : "details"
+    ALPHA ||--|| BETA : "a_to_b"
+    BETA ||--|| GAMMA : "b_to_c"
+    GAMMA ||--|| ALPHA : "c_to_a"
+
+    %% More edge cases
+    DOCUMENT {
+        int document_id PK
+        int created_by_user_id FK
+        int updated_by_user_id FK
+        string title
+    }
+
+    CLASS {
+        int class_id PK
+        string namespace
+        string event
+    }
+
+    EMPTY_ENTITY {
+    }
+
+    CUSTOM_JOIN {
+        int user_fk PK,FK
+        int role_fk PK,FK
+        string note
+    }
+
+    USER ||--o{ DOCUMENT : "created"
+    USER ||--o{ DOCUMENT : "updated"
+    USER ||--o{ CUSTOM_JOIN : "custom"
+    ROLE ||--o{ CUSTOM_JOIN : "custom"
