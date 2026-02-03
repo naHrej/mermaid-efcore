@@ -100,10 +100,10 @@ The Blazor Server will start at `http://localhost:5210`. Open in your browser to
 ### Entity Definition
 
 ```mermaid
-ENTITY_NAME {
-    type column_name [PK] [FK] [UK]
-    ...
-}
+erDiagram
+    ENTITY_NAME {
+        type column_name
+    }
 ```
 
 **Flags**:
@@ -116,7 +116,8 @@ ENTITY_NAME {
 ### Relationships
 
 ```mermaid
-ENTITY1 ||--o{ ENTITY2 : "label"
+erDiagram
+    ENTITY1 ||--o{ ENTITY2 : "label"
 ```
 
 **Cardinality**:
@@ -190,8 +191,21 @@ public class AppDbContext : DbContext
 Detected automatically when a 1:1 relationship exists where the dependent entity's PK equals its FK:
 
 ```mermaid
-USER ||--|| USER_PROFILE : "has_profile"  % USER_PROFILE.user_id is both PK and FK
+erDiagram
+    USER {
+        int user_id PK
+        string name
+    }
+    
+    USER_PROFILE {
+        int user_id PK,FK
+        string full_name
+    }
+    
+    USER ||--|| USER_PROFILE : "has_profile"
 ```
+
+*Note: `USER_PROFILE.user_id` is both PK and FK, which is detected as an owned entity.*
 
 Generated as `.OwnsOne()` in DbContext.
 
@@ -200,13 +214,14 @@ Generated as `.OwnsOne()` in DbContext.
 Join tables (composite PKs where all keys are FKs) are detected and NOT included in DbSets:
 
 ```mermaid
-POST_TAG {
-    int post_id PK,FK
-    int tag_id PK,FK
-}
-
-POST ||--o{ POST_TAG : ""
-TAG ||--o{ POST_TAG : ""
+erDiagram
+    POST_TAG {
+        int post_id PK,FK
+        int tag_id PK,FK
+    }
+    
+    POST ||--o{ POST_TAG : ""
+    TAG ||--o{ POST_TAG : ""
 ```
 
 ### Composite Keys
@@ -214,13 +229,14 @@ TAG ||--o{ POST_TAG : ""
 Automatically detected and configured:
 
 ```mermaid
-ORDER_ITEM {
-    int order_id PK,FK
-    int line_number PK
-    string sku
-}
-
-ORDER ||--o{ ORDER_ITEM : ""
+erDiagram
+    ORDER_ITEM {
+        int order_id PK,FK
+        int line_number PK
+        string sku
+    }
+    
+    ORDER ||--o{ ORDER_ITEM : ""
 ```
 
 Generates: `.HasKey(e => new { e.OrderId, e.LineNumber })`
@@ -230,13 +246,14 @@ Generates: `.HasKey(e => new { e.OrderId, e.LineNumber })`
 Multiple relationships between the same two entities are deduplicated (requires distinct FKs to represent multiple paths):
 
 ```mermaid
-POST {
-    int created_by_user_id FK
-    int updated_by_user_id FK
-}
-
-USER ||--o{ POST : "created"
-USER ||--o{ POST : "updated"
+erDiagram
+    POST {
+        int created_by_user_id FK
+        int updated_by_user_id FK
+    }
+    
+    USER ||--o{ POST : "created"
+    USER ||--o{ POST : "updated"
 ```
 
 Would require explicit FK column naming in Mermaid to work correctly.
